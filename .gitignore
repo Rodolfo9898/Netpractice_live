@@ -1,0 +1,9 @@
+# The archive the site was extracted from: only its contents are kept in git
+*.tgz
+
+# Editors and OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*~
