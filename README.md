@@ -8,10 +8,10 @@ The training interface of the NetPractice project, as provided by the intranet
 (`net_practice.1.9.tgz`), kept so that it can be used as a git submodule. Nothing in the
 site was modified: its pages and scripts are byte for byte those of the archive.
 
-Git keeps the archive and the launcher, and none of the site. `run.sh` extracts the archive
-at the root of the repository the first time it runs, and again whenever a file of the site
-is missing, then serves it. A fresh clone is four files, and one `./run.sh` away from the
-interface.
+Git keeps the archive and the launcher (`run.sh` and its modules), and none of the site.
+`run.sh` extracts the archive at the root of the repository the first time it runs, and again
+whenever a file of the site is missing, then serves it. A fresh clone is one `./run.sh` away
+from the interface.
 
 NetPractice is a set of ten small simulated networks, each one broken. For each level you
 fix the IP addresses, masks, gateways and routes of the unshaded fields until every goal
@@ -23,8 +23,12 @@ What git keeps:
 | File | What it is |
 |---|---|
 | `src/net_practice.1.9.tgz` | The archive from the intranet, untouched: the only copy of the site in git |
-| `run.sh` | Extracts the archive when the site is not all at the root, then starts a local web server on a free port and opens the browser on it |
-| `.gitignore` | Ignores everything at the root but these four files, so the extracted site is never committed |
+| `run.sh` | The main: loads the modules, makes sure the site is all at the root (extracting what is missing), then starts a local web server on a free port and opens the browser on it |
+| `src/sh/log.sh` | The messages, and the errors that stop everything |
+| `src/sh/archive.sh` | Finds the archive in `src/`, reads its list of files and says where each one goes |
+| `src/sh/site.sh` | Checks that the site is all at the root, and extracts from the archive what is missing |
+| `src/sh/server.sh` | Finds a free port, starts the web server and opens the browser: what the `run.sh` of the intranet does |
+| `.gitignore` | Ignores everything at the root but `run.sh`, `src/` and the README, so the extracted site is never committed |
 | `README.md` | This file |
 
 What `run.sh` extracts at the root (and git ignores):
@@ -73,12 +77,28 @@ It works in the folder it is in, so it can be started from anywhere. In order:
    `xdg-open` (Linux) or `open` (macOS). Ctrl-C stops the server.
 
 It stops before step 3, with a message, when there is no archive and no `index.html`, when
-`src/` holds two archives, when the archive cannot be read, or when a name in it would leave
-the folder.
+`src/` holds two archives, when the archive cannot be read, or when a file in it would leave
+the folder or go into `src/` or `.git` (so an archive can never replace the modules).
 
 `./run.sh --extract` does steps 1 and 2 only: no server, no browser, and nothing printed when
 the site is complete. It is for a project that uses this repository as a submodule and needs
 the files without the server (the checks of `netpractice` run the simulator of `js/`).
+
+### How `run.sh` is organized
+
+`run.sh` is only the main. It moves to its own folder, loads the modules of `src/sh/` in this
+order (`log`, `archive`, `site`, `server`), and its `main` function does the work: `site_ensure`
+(steps 1 and 2), then `server_run` (step 3), unless it was started with `--extract`.
+
+The modules only define functions, so nothing happens when one is loaded. The functions start
+with the name of their module: `log_say`, `log_fail`, `archive_find`, `archive_list`,
+`archive_path`, `site_look`, `site_extract`, `site_ensure`, `server_port`, `server_browser`,
+`server_run`. The few variables they share are in capitals (`ARCHIVE`, `LISTING`, `REL`,
+`MISSING`, `TOTAL`, `SERVER_PORT`) and are listed at the top of the module that sets them.
+To add a module, put the file in `src/sh/` and its name in the `for module in ...` line of
+`run.sh`.
+
+### Starting over
 
 To get a file back as the archive has it, delete it and run `./run.sh` again. To start the
 whole site over: `rm -rf css img js index.html end.html level*.html License`, then `./run.sh`.

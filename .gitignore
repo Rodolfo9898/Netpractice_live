@@ -1,5 +1,6 @@
-# Only the archive, run.sh, this file and the README are kept in git. The site itself (index.html, levelN.html, js/, css/, img/,
-# License) is extracted from src/net_practice*.tgz by run.sh, so it is ignored. To keep one more file, add a line "!/name" below.
+# Only run.sh, src/ (its modules in src/sh/ and the archive), this file and the README are kept in git. The site itself (index.html,
+# levelN.html, js/, css/, img/, License) is extracted from src/net_practice*.tgz by run.sh, so it is ignored. To keep one more file
+# at the root, add a line "!/name" below.
 /*
 !/.gitignore
 !/README.md
