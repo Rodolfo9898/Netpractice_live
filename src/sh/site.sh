@@ -4,7 +4,6 @@
 # Sourced by run.sh (it only defines functions). Needs log.sh and archive.sh. Variables it sets:
 #   MISSING   the files of the site that are not here (an array)
 #   TOTAL     how many files the site has
-#   WORK      the temporary folder the archive is unpacked in
 
 # site_look   sets MISSING and TOTAL, from the listing of the archive.
 site_look()
@@ -20,16 +19,13 @@ site_look()
 	done <<< "$LISTING"
 }
 
-# site_extract   unpacks the archive in a temporary folder (removed whatever happens) and copies from it the files that are
-# not here. A file that is already here is left as it is.
+# site_extract   unpacks the archive in a temporary folder and copies from it the files that are not here. A file that is already
+# here is left as it is.
 site_extract()
 {
 	local member from
 
-	WORK=$(mktemp -d "${TMPDIR:-/tmp}/netpractice.XXXXXX") || log_fail "cannot make a temporary folder"
-	trap 'rm -rf "$WORK"' EXIT
-	tar -xzf "$ARCHIVE" -C "$WORK" || log_fail "cannot extract $ARCHIVE"
-	chmod -R u+rwX "$WORK"		# (whatever the modes in the archive, it can be read, and removed)
+	archive_unpack || exit 1
 	while IFS= read -r member; do
 		archive_path "$member" || continue
 		if [ -e "$REL" ] || [ -L "$REL" ]; then
@@ -41,7 +37,7 @@ site_extract()
 		fi
 		mkdir -p -- "$(dirname -- "$REL")" && cp -p -- "$from" "$REL" || log_fail "cannot write $REL"
 	done <<< "$LISTING"
-	rm -rf "$WORK"
+	archive_forget
 }
 
 # site_ensure   the whole of it: returns when the site is all here (extracting what was missing), stops the script when it cannot be.

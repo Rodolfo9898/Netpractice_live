@@ -10,8 +10,9 @@ site was modified: its pages and scripts are byte for byte those of the archive.
 
 Git keeps the archive and the launcher (`run.sh` and its modules), and none of the site.
 `run.sh` extracts the archive at the root of the repository the first time it runs, and again
-whenever a file of the site is missing, then serves it. A fresh clone is one `./run.sh` away
-from the interface.
+whenever a file of the site is missing, serves it, and removes it again when the server stops:
+the site only exists while it is being used, and the folder is back to what git keeps. A
+fresh clone is one `./run.sh` away from the interface.
 
 NetPractice is a set of ten small simulated networks, each one broken. For each level you
 fix the IP addresses, masks, gateways and routes of the unshaded fields until every goal
@@ -23,10 +24,11 @@ What git keeps:
 | File | What it is |
 |---|---|
 | `src/net_practice.1.9.tgz` | The archive from the intranet, untouched: the only copy of the site in git |
-| `run.sh` | The main: loads the modules, makes sure the site is all at the root (extracting what is missing), then starts a local web server on a free port and opens the browser on it |
+| `run.sh` | The main: loads the modules, makes sure the site is all at the root (extracting what is missing), starts a local web server on a free port and opens the browser on it, and removes the site when the server stops |
 | `src/sh/log.sh` | The messages, and the errors that stop everything |
-| `src/sh/archive.sh` | Finds the archive in `src/`, reads its list of files and says where each one goes |
+| `src/sh/archive.sh` | Finds the archive in `src/`, reads and checks its list of files, says where each one goes, and unpacks it to read from |
 | `src/sh/site.sh` | Checks that the site is all at the root, and extracts from the archive what is missing |
+| `src/sh/destroy.sh` | The opposite: removes the site from the root, so that only what git keeps is left |
 | `src/sh/server.sh` | Finds a free port, starts the web server and opens the browser: what the `run.sh` of the intranet does |
 | `.gitignore` | Ignores everything at the root but `run.sh`, `src/` and the README, so the extracted site is never committed |
 | `README.md` | This file |
@@ -75,36 +77,55 @@ It works in the folder it is in, so it can be started from anywhere. In order:
 3. It looks for a free port from 49152 up (with `ss`, when it exists, otherwise it uses
    49242), starts `python3 -m http.server` **in this folder**, and opens the browser with
    `xdg-open` (Linux) or `open` (macOS). Ctrl-C stops the server.
+4. When the server stops, however it stops (Ctrl-C, the terminal closed, the server failing to
+   start), the site is removed: every file of the site that is still the archive's own
+   (compared byte for byte), then the folders that leaves empty (a `.DS_Store` of the Finder
+   in them does not count). It says `Netpractice: removed the site (33 files).`
+
+Nothing that somebody wrote is ever removed. A file of the site that was changed is kept and
+named (`Netpractice: kept 1 file(s) of the site that differ from the archive ...`), and so is
+everything the archive does not have: your own files, a `level1.json` you put here. Without an
+archive nothing says what the site is made of, and nothing is removed. Keep one `run.sh` per
+folder: when one stops, it removes the site the other one is serving.
 
 It stops before step 3, with a message, when there is no archive and no `index.html`, when
 `src/` holds two archives, when the archive cannot be read, or when a file in it would leave
 the folder or go into `src/` or `.git` (so an archive can never replace the modules).
 
-`./run.sh --extract` does steps 1 and 2 only: no server, no browser, and nothing printed when
-the site is complete. It is for a project that uses this repository as a submodule and needs
-the files without the server (the checks of `netpractice` run the simulator of `js/`).
+`./run.sh --extract` does steps 1 and 2 only: no server, no browser, nothing printed when
+the site is complete, and nothing removed afterwards. It is for a project that uses this
+repository as a submodule and needs the files without the server (the checks of `netpractice`
+run the simulator of `js/`). A `run.sh` started later removes them when its server stops.
+
+`./run.sh --destroy` does step 4 only: it removes what `--extract` left, or what a run that
+was killed (`kill -9`, a power cut) had no time to remove. It says `no file of the site is
+here.` when there is nothing to remove.
 
 ### How `run.sh` is organized
 
 `run.sh` is only the main. It moves to its own folder, loads the modules of `src/sh/` in this
-order (`log`, `archive`, `site`, `server`), and its `main` function does the work: `site_ensure`
-(steps 1 and 2), then `server_run` (step 3), unless it was started with `--extract`.
+order (`log`, `archive`, `site`, `destroy`, `server`), and its `main` function does the work:
+`site_ensure` (steps 1 and 2), then `server_run` (step 3). `main` also decides what happens
+when the script ends: it always removes the temporary folder, and when the server was started
+it also calls `destroy_site` (step 4), by an `EXIT` trap, which is why Ctrl-C and the like
+clean up too. `--extract` and `--destroy` only run their part.
 
 The modules only define functions, so nothing happens when one is loaded. The functions start
-with the name of their module: `log_say`, `log_fail`, `archive_find`, `archive_list`,
-`archive_path`, `site_look`, `site_extract`, `site_ensure`, `server_port`, `server_browser`,
-`server_run`. The few variables they share are in capitals (`ARCHIVE`, `LISTING`, `REL`,
-`MISSING`, `TOTAL`, `SERVER_PORT`) and are listed at the top of the module that sets them.
-To add a module, put the file in `src/sh/` and its name in the `for module in ...` line of
-`run.sh`.
+with the name of their module: `log_say`, `log_warn`, `log_fail`, `archive_find`,
+`archive_list`, `archive_path`, `archive_dir`, `archive_unpack`, `archive_forget`, `site_look`,
+`site_extract`, `site_ensure`, `destroy_site`, `server_port`, `server_browser`, `server_run`.
+The few variables they share are in capitals (`ARCHIVE`, `LISTING`, `REL`, `WORK`, `MISSING`,
+`TOTAL`, `REMOVED`, `KEPT`, `SERVER_PORT`) and are listed at the top of the module that sets
+them. To add a module, put the file in `src/sh/` and its name in the `for module in ...` line
+of `run.sh`.
 
 ### Starting over
 
-To get a file back as the archive has it, delete it and run `./run.sh` again. To start the
-whole site over: `rm -rf css img js index.html end.html level*.html License`, then `./run.sh`.
-To use another version of the archive, put the new `net_practice.X.Y.tgz` in `src/` in place
-of the old one and start the site over the same way: the archive is only read for what is
-missing.
+To get a file back as the archive has it, delete it and run `./run.sh` again. A file you
+changed is kept by step 4, so delete it by hand too to be rid of the change. To use another
+version of the archive, put the new `net_practice.X.Y.tgz` in `src/` in place of the old one:
+the site is not there between two runs, so the next `./run.sh` extracts the new one (after a
+`./run.sh --extract` that left the old one, do `./run.sh --destroy` first).
 
 Without `run.sh`:
 
